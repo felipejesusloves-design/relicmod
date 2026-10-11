@@ -4,6 +4,8 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -25,6 +27,7 @@ public class RelicMod implements ModInitializer {
         ModItems.init();
         RelicData.init();
         EnergyData.init();
+        ModEffects.init();
         RelicCommand.register();
 
         // Rede: cliente -> servidor (apertou a tecla)
@@ -46,8 +49,11 @@ public class RelicMod implements ModInitializer {
             RelicData.ensureRelic(player);
         });
 
-        // Saiu no meio de uma possessão: desfaz
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> PossessionManager.abort(handler.player));
+        // Ultimate da Sombra: o primeiro golpe depois de ativar paralisa e amaldiçoa
+        AttackEntityCallback.EVENT.register(ShadowStun::onAttack);
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> ShadowStun.forget(handler.player));
+        ServerEntityEvents.ENTITY_UNLOAD.register((entity, world) -> ShadowStun.release(entity));
+        ServerLifecycleEvents.SERVER_STOPPING.register(ShadowStun::releaseAll);
 
         // Relíquia largada no chão é apagada na hora (a verdadeira volta ao inventário)
         ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
@@ -76,13 +82,13 @@ public class RelicMod implements ModInitializer {
 
         // Todo tick: possessão. A cada 5 ticks: garante a relíquia. A cada 20 ticks: passiva e energia.
         ServerTickEvents.END_SERVER_TICK.register(server -> {
-            PossessionManager.tick(server);
+            ShadowStun.tick(server);
             int tick = server.getTicks();
             if (tick % 5 != 0) return;
             for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
                 if (!player.isAlive()) continue;
                 RelicData.ensureRelic(player);
-                if (tick % 20 == 0 && !PossessionManager.isPossessing(player)) {
+                if (tick % 20 == 0) {
                     Item item = RelicData.getRelicItem(player);
                     if (item instanceof RelicItem relic) relic.applyPassive(player, EnergyData.get(player));
                     EnergyData.show(player);

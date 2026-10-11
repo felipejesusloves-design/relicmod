@@ -7,5 +7,6 @@
   "item.relicmod.energy_flask": "Frasco de Energia",
   "key.relicmod.ability": "Habilidade padrão da relíquia",
   "key.relicmod.ultimate": "Ultimate da relíquia",
-  "key.category.relicmod.main": "Relic Mod"
+  "key.category.relicmod.main": "Relic Mod",
+  "effect.relicmod.cursed": "Amaldiçoado"
 }

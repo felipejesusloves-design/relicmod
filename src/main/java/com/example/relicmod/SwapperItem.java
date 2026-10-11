@@ -27,7 +27,6 @@ public class SwapperItem extends Item {
     @Override
     public ActionResult use(World world, PlayerEntity user, Hand hand) {
         if (!(user instanceof ServerPlayerEntity player)) return ActionResult.SUCCESS;
-        if (PossessionManager.isPossessing(player)) return ActionResult.FAIL;
 
         Item current = RelicData.getRelicItem(player);
         List<RelicItem> options = new ArrayList<>();

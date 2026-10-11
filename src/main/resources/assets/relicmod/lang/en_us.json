@@ -7,5 +7,6 @@
   "item.relicmod.energy_flask": "Energy Flask",
   "key.relicmod.ability": "Relic Standard Ability",
   "key.relicmod.ultimate": "Relic Ultimate",
-  "key.category.relicmod.main": "Relic Mod"
+  "key.category.relicmod.main": "Relic Mod",
+  "effect.relicmod.cursed": "Cursed"
 }

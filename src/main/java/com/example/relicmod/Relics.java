@@ -124,7 +124,7 @@ public class Relics {
         }
 
         @Override protected boolean useUltimate(ServerPlayerEntity p, ServerWorld w, int energy) {
-            return PossessionManager.start(p, w, energy);
+            return ShadowStun.arm(p, w);
         }
 
         /** O jogador cabe nessa posição? Confere pés, meio e cabeça. */
