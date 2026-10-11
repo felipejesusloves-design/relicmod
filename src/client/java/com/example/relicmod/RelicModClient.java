@@ -10,17 +10,23 @@ import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 public class RelicModClient implements ClientModInitializer {
-    private static KeyBinding abilityKey;
+    private static KeyBinding standardKey;
+    private static KeyBinding ultimateKey;
 
     @Override
     public void onInitializeClient() {
         KeyBinding.Category category = KeyBinding.Category.create(Identifier.of(RelicMod.MOD_ID, "main"));
-        abilityKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        standardKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.relicmod.ability", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_R, category));
+        ultimateKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                "key.relicmod.ultimate", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_G, category));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            while (abilityKey.wasPressed()) {
-                if (client.player != null) ClientPlayNetworking.send(new UseAbilityPayload());
+            while (standardKey.wasPressed()) {
+                if (client.player != null) ClientPlayNetworking.send(new UseAbilityPayload(false));
+            }
+            while (ultimateKey.wasPressed()) {
+                if (client.player != null) ClientPlayNetworking.send(new UseAbilityPayload(true));
             }
         });
     }

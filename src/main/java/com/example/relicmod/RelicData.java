@@ -63,8 +63,13 @@ public class RelicData {
         ensureRelic(p);
     }
 
-    public static void useAbility(ServerPlayerEntity p) {
-        ItemStack stack = findRelicStack(p);
-        if (stack.getItem() instanceof RelicItem relic) relic.tryActivate(p, stack);
+    public static void useStandard(ServerPlayerEntity p) {
+        if (PossessionManager.isPossessing(p)) return;
+        if (getRelicItem(p) instanceof RelicItem relic) relic.tryStandard(p);
+    }
+
+    public static void useUltimate(ServerPlayerEntity p) {
+        if (PossessionManager.isPossessing(p)) return;
+        if (getRelicItem(p) instanceof RelicItem relic) relic.tryUltimate(p);
     }
 }

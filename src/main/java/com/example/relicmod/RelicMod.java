@@ -24,13 +24,15 @@ public class RelicMod implements ModInitializer {
     public void onInitialize() {
         ModItems.init();
         RelicData.init();
+        EnergyData.init();
         RelicCommand.register();
 
         // Rede: cliente -> servidor (apertou a tecla)
         PayloadTypeRegistry.playC2S().register(UseAbilityPayload.ID, UseAbilityPayload.CODEC);
         ServerPlayNetworking.registerGlobalReceiver(UseAbilityPayload.ID, (payload, context) -> {
             ServerPlayerEntity player = context.player();
-            RelicData.useAbility(player);
+            if (payload.ultimate()) RelicData.useUltimate(player);
+            else RelicData.useStandard(player);
         });
 
         // Primeiro login: sorteia a relíquia
@@ -44,8 +46,10 @@ public class RelicMod implements ModInitializer {
             RelicData.ensureRelic(player);
         });
 
-        // Relíquia largada no chão (tecla Q, morte, etc.) é apagada na hora.
-        // A relíquia verdadeira volta para o inventário em até 0,25 segundo.
+        // Saiu no meio de uma possessão: desfaz
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> PossessionManager.abort(handler.player));
+
+        // Relíquia largada no chão é apagada na hora (a verdadeira volta ao inventário)
         ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
             if (entity instanceof ItemEntity itemEntity
                     && itemEntity.getStack().getItem() instanceof RelicItem) {
@@ -60,16 +64,28 @@ public class RelicMod implements ModInitializer {
         });
         ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> RelicData.ensureRelic(newPlayer));
 
-        // A cada 5 ticks garante a relíquia; a cada 20 ticks (1 s) aplica a passiva
+        // Energia: morrer = -1, matar outro jogador = +1
+        ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> {
+            if (entity instanceof ServerPlayerEntity victim) {
+                EnergyData.add(victim, -1);
+                if (source.getAttacker() instanceof ServerPlayerEntity killer && killer != victim) {
+                    EnergyData.add(killer, 1);
+                }
+            }
+        });
+
+        // Todo tick: possessão. A cada 5 ticks: garante a relíquia. A cada 20 ticks: passiva e energia.
         ServerTickEvents.END_SERVER_TICK.register(server -> {
+            PossessionManager.tick(server);
             int tick = server.getTicks();
             if (tick % 5 != 0) return;
             for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
                 if (!player.isAlive()) continue;
                 RelicData.ensureRelic(player);
-                if (tick % 20 == 0) {
+                if (tick % 20 == 0 && !PossessionManager.isPossessing(player)) {
                     Item item = RelicData.getRelicItem(player);
-                    if (item instanceof RelicItem relic) relic.applyPassive(player);
+                    if (item instanceof RelicItem relic) relic.applyPassive(player, EnergyData.get(player));
+                    EnergyData.show(player);
                 }
             }
         });

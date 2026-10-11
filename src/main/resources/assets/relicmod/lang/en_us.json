@@ -3,6 +3,9 @@
   "item.relicmod.glacial_relic": "Glacial Relic",
   "item.relicmod.shadow_relic": "Shadow Relic",
   "item.relicmod.storm_relic": "Storm Relic",
-  "key.relicmod.ability": "Relic Ability",
+  "item.relicmod.swapper": "Relic Swapper",
+  "item.relicmod.energy_flask": "Energy Flask",
+  "key.relicmod.ability": "Relic Standard Ability",
+  "key.relicmod.ultimate": "Relic Ultimate",
   "key.category.relicmod.main": "Relic Mod"
 }
