@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "relicmod",
+  "version": "1.0.0",
+  "name": "Relic Mod",
+  "description": "Cada jogador nasce com uma relíquia de poder único.",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.example.relicmod.RelicMod"],
+    "client": ["com.example.relicmod.RelicModClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.17.0",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
