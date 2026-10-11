@@ -56,6 +56,13 @@ public class RelicData {
         }
     }
 
+    /** Troca a relíquia do jogador por outra. */
+    public static void changeRelic(ServerPlayerEntity p, RelicItem newRelic) {
+        removeRelics(p);
+        setRelicId(p, Registries.ITEM.getId(newRelic).toString());
+        ensureRelic(p);
+    }
+
     public static void useAbility(ServerPlayerEntity p) {
         ItemStack stack = findRelicStack(p);
         if (stack.getItem() instanceof RelicItem relic) relic.tryActivate(p, stack);
