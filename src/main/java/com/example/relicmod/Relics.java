@@ -28,21 +28,34 @@ public class Relics {
         p.addStatusEffect(new StatusEffectInstance(e, ticks, amp, true, false));
     }
 
-    // ---------- ÍGNEA (habilidades antigas, ainda sem ultimate) ----------
+    // ---------- ÍGNEA ----------
     public static class Igneous extends RelicItem {
-        public Igneous(Settings s) { super(s, 20 * 15, 0); }
+        public Igneous(Settings s) { super(s, 20 * 15, 20 * 120); }
 
+        @Override public boolean hasUltimate() { return true; }
+
+        /** Resistência ao fogo sempre. Força I (energia 0 a +4) ou II (+5) enquanto estiver em chamas. */
         @Override public void applyPassive(ServerPlayerEntity p, int energy) {
             effect(p, StatusEffects.FIRE_RESISTANCE, 60, 0);
+            boolean burning = p.isOnFire() || p.isInLava() || Volcano.contains(p);
+            if (energy >= 0 && burning) {
+                effect(p, StatusEffects.STRENGTH, 60, energy >= 5 ? 1 : 0);
+            }
+        }
+
+        /** Nado na lava: correndo (Ctrl) dentro da lava, você avança para onde olha, como na água. */
+        public static void lavaSwim(ServerPlayerEntity p) {
+            if (!p.isInLava() || !p.isSprinting()) return;
+            p.setVelocity(p.getRotationVec(1.0f).multiply(0.18));
+            p.networkHandler.sendPacket(new EntityVelocityUpdateS2CPacket(p));
         }
 
         @Override protected boolean useStandard(ServerPlayerEntity p, ServerWorld w, int energy) {
-            Box box = p.getBoundingBox().expand(6);
-            for (LivingEntity e : w.getEntitiesByClass(LivingEntity.class, box, e -> e != p)) {
-                e.setOnFireFor(6);
-            }
-            w.spawnParticles(ParticleTypes.FLAME, p.getX(), p.getY() + 1, p.getZ(), 120, 3, 0.5, 3, 0.05);
-            return true;
+            return Fireballs.launch(p, w, energy);
+        }
+
+        @Override protected boolean useUltimate(ServerPlayerEntity p, ServerWorld w, int energy) {
+            return Volcano.activate(p, w);
         }
     }
 

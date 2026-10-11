@@ -8,5 +8,9 @@
   "key.relicmod.ability": "Relic Standard Ability",
   "key.relicmod.ultimate": "Relic Ultimate",
   "key.category.relicmod.main": "Relic Mod",
-  "effect.relicmod.cursed": "Cursed"
+  "effect.relicmod.cursed": "Cursed",
+  "death.attack.relicmod_fireball": "%1$s was incinerated",
+  "death.attack.relicmod_fireball.player": "%1$s was incinerated by %2$s",
+  "death.attack.relicmod_volcano": "%1$s was burned by a volcano",
+  "death.attack.relicmod_volcano.player": "%1$s was burned by %2$s's volcano"
 }

@@ -6,14 +6,21 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
+import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
+import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.entity.ItemEntity;
+import net.minecraft.item.BlockItem;
+import net.minecraft.item.BucketItem;
 import net.minecraft.item.Item;
 import net.minecraft.registry.Registries;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.ActionResult;
+import net.minecraft.util.math.BlockPos;
 
 import java.util.List;
 import java.util.Random;
@@ -53,7 +60,32 @@ public class RelicMod implements ModInitializer {
         AttackEntityCallback.EVENT.register(ShadowStun::onAttack);
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> ShadowStun.forget(handler.player));
         ServerEntityEvents.ENTITY_UNLOAD.register((entity, world) -> ShadowStun.release(entity));
-        ServerLifecycleEvents.SERVER_STOPPING.register(ShadowStun::releaseAll);
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            ShadowStun.releaseAll(server);
+            Volcano.restoreAll(server);
+        });
+
+        // Vulcão da Ígnea: ninguém quebra nem coloca blocos dentro da área
+        PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) -> !Volcano.isProtected(world, pos));
+        UseBlockCallback.EVENT.register((player, world, hand, hit) -> {
+            Item held = player.getStackInHand(hand).getItem();
+            if (held instanceof BlockItem || held instanceof BucketItem) {
+                BlockPos clicked = hit.getBlockPos();
+                BlockPos placed = clicked.offset(hit.getSide());
+                if (Volcano.isProtected(world, clicked) || Volcano.isProtected(world, placed)) return ActionResult.FAIL;
+            }
+            return ActionResult.PASS;
+        });
+
+        // Vulcão: o usuário causa +50% de dano de todas as fontes
+        ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, baseDamageTaken, damageTaken, blocked) -> {
+            if (blocked || damageTaken <= 0) return;
+            if (source.isOf(ModDamage.FIREBALL) || source.isOf(ModDamage.VOLCANO)) return;
+            if (source.getAttacker() instanceof ServerPlayerEntity attacker && attacker != entity
+                    && Volcano.isBuffed(attacker) && entity.getEntityWorld() instanceof ServerWorld w) {
+                ModDamage.hit(w, entity, ModDamage.VOLCANO, attacker, damageTaken * 0.5f);
+            }
+        });
 
         // Relíquia largada no chão é apagada na hora (a verdadeira volta ao inventário)
         ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
@@ -83,7 +115,17 @@ public class RelicMod implements ModInitializer {
         // Todo tick: possessão. A cada 5 ticks: garante a relíquia. A cada 20 ticks: passiva e energia.
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             ShadowStun.tick(server);
+            Fireballs.tick(server);
+            Volcano.tick(server);
             int tick = server.getTicks();
+
+            // nado na lava (Ígnea)
+            for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+                if (player.isInLava() && RelicData.getRelicItem(player) instanceof Relics.Igneous) {
+                    Relics.Igneous.lavaSwim(player);
+                }
+            }
+
             if (tick % 5 != 0) return;
             for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
                 if (!player.isAlive()) continue;
