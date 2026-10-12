@@ -40,6 +40,7 @@ public class RelicMod implements ModInitializer {
 
         PayloadTypeRegistry.playC2S().register(UseAbilityPayload.ID, UseAbilityPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(GlacialHudPayload.ID, GlacialHudPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(CooldownHudPayload.ID, CooldownHudPayload.CODEC);
         ServerPlayNetworking.registerGlobalReceiver(UseAbilityPayload.ID, (payload, context) -> {
             ServerPlayerEntity player = context.player();
             if (payload.ultimate()) RelicData.useUltimate(player);
@@ -136,6 +137,7 @@ public class RelicMod implements ModInitializer {
             Volcano.tick(server);
             StormPower.tick(server);
             GlacialPower.tick(server);
+            RelicItem.tickHud(server);
             int tick = server.getTicks();
 
             for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
