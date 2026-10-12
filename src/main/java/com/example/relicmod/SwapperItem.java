@@ -58,7 +58,7 @@ public class SwapperItem extends Item {
 
         // VISUAL DEPOIS DA TROCA: flash branco + chuva de brilho + som de totum
         if (world instanceof ServerWorld sw2) {
-            sw2.spawnParticles(ParticleTypes.FLASH, player.getX(), player.getY() + 1, player.getZ(), 1, 0, 0, 0, 0);
+            sw2.spawnParticles(ParticleTypes.FIREWORK, player.getX(), player.getY() + 1, player.getZ(), 1, 0, 0, 0, 0);
             sw2.spawnParticles(ParticleTypes.ENCHANT, player.getX(), player.getY() + 1, player.getZ(), 80, 0.6, 0.9, 0.6, 0.6);
             sw2.playSound(null, player.getX(), player.getY(), player.getZ(),
                     SoundEvents.ITEM_TOTEM_USE, SoundCategory.PLAYERS, 1.0f, 1.0f);
