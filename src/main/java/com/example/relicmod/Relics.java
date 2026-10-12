@@ -59,25 +59,21 @@ public class Relics {
         }
     }
 
-    // ---------- GLACIAL (habilidades antigas, ainda sem ultimate) ----------
+    // ---------- GLACIAL ----------
     public static class Glacial extends RelicItem {
-        public Glacial(Settings s) { super(s, 20 * 20, 0); }
+        public Glacial(Settings s) { super(s, 20 * 10, 20 * 120); }
 
-        @Override public void applyPassive(ServerPlayerEntity p, int energy) {
-            ServerWorld w = p.getEntityWorld();
-            for (HostileEntity m : w.getEntitiesByClass(HostileEntity.class, p.getBoundingBox().expand(6), e -> true)) {
-                m.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, 40, 0));
-            }
-            p.setFrozenTicks(0);
-        }
+        @Override public boolean hasUltimate() { return true; }
+
+        /** A passiva da Glacial acontece nos golpes críticos (veja GlacialPower). */
+        @Override public void applyPassive(ServerPlayerEntity p, int energy) {}
 
         @Override protected boolean useStandard(ServerPlayerEntity p, ServerWorld w, int energy) {
-            for (LivingEntity e : w.getEntitiesByClass(LivingEntity.class, p.getBoundingBox().expand(7), e -> e != p)) {
-                e.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, 100, 6));
-                e.setFrozenTicks(200);
-            }
-            w.spawnParticles(ParticleTypes.SNOWFLAKE, p.getX(), p.getY() + 1, p.getZ(), 150, 3.5, 1, 3.5, 0.02);
-            return true;
+            return GlacialPower.standard(p, w);
+        }
+
+        @Override protected boolean useUltimate(ServerPlayerEntity p, ServerWorld w, int energy) {
+            return GlacialPower.blizzard(p, w);
         }
     }
 

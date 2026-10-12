@@ -39,6 +39,7 @@ public class RelicMod implements ModInitializer {
 
         // Rede: cliente -> servidor (apertou a tecla)
         PayloadTypeRegistry.playC2S().register(UseAbilityPayload.ID, UseAbilityPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(GlacialHudPayload.ID, GlacialHudPayload.CODEC);
         ServerPlayNetworking.registerGlobalReceiver(UseAbilityPayload.ID, (payload, context) -> {
             ServerPlayerEntity player = context.player();
             if (payload.ultimate()) RelicData.useUltimate(player);
@@ -59,14 +60,20 @@ public class RelicMod implements ModInitializer {
         // Ultimate da Sombra: o primeiro golpe depois de ativar paralisa e amaldiçoa
         AttackEntityCallback.EVENT.register(ShadowStun::onAttack);
         AttackEntityCallback.EVENT.register(StormPower::onAttack);
+        AttackEntityCallback.EVENT.register(GlacialPower::onAttack);
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
             ShadowStun.forget(handler.player);
             StormPower.forget(handler.player);
+            GlacialPower.forget(handler.player);
         });
-        ServerEntityEvents.ENTITY_UNLOAD.register((entity, world) -> ShadowStun.release(entity));
+        ServerEntityEvents.ENTITY_UNLOAD.register((entity, world) -> {
+            ShadowStun.release(entity);
+            GlacialPower.release(entity);
+        });
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             ShadowStun.releaseAll(server);
             Volcano.restoreAll(server);
+            GlacialPower.releaseAll(server);
         });
 
         // Vulcão da Ígnea: ninguém quebra nem coloca blocos dentro da área
@@ -85,6 +92,7 @@ public class RelicMod implements ModInitializer {
         ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, baseDamageTaken, damageTaken, blocked) -> {
             if (blocked || damageTaken <= 0) return;
             if (entity instanceof ServerPlayerEntity hurt) StormPower.onDamaged(hurt);
+            GlacialPower.onDamaged(entity, source);
             if (source.isOf(ModDamage.FIREBALL) || source.isOf(ModDamage.VOLCANO)
                     || source.isOf(ModDamage.STORM) || source.isOf(ModDamage.STORM_BEAM)) return;
             if (source.getAttacker() instanceof ServerPlayerEntity attacker && attacker != entity
@@ -124,6 +132,7 @@ public class RelicMod implements ModInitializer {
             Fireballs.tick(server);
             Volcano.tick(server);
             StormPower.tick(server);
+            GlacialPower.tick(server);
             int tick = server.getTicks();
 
             // nado na lava (Ígnea)

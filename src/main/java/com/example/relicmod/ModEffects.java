@@ -19,5 +19,15 @@ public class ModEffects {
                     -6.0,
                     EntityAttributeModifier.Operation.ADD_VALUE));
 
+    /** Congelamento: -20% de velocidade por nível (níveis 1 a 4). */
+    public static final RegistryEntry<StatusEffect> FROZEN = Registry.registerReference(
+            Registries.STATUS_EFFECT,
+            Identifier.of(RelicMod.MOD_ID, "frozen"),
+            new FrozenEffect().addAttributeModifier(
+                    EntityAttributes.MOVEMENT_SPEED,
+                    Identifier.of(RelicMod.MOD_ID, "frozen_slow"),
+                    -0.2,
+                    EntityAttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+
     public static void init() {}
 }

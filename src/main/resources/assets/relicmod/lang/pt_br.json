@@ -1,4 +1,4 @@
-﻿{
+{
   "item.relicmod.igneous_relic": "Relíquia Ígnea",
   "item.relicmod.glacial_relic": "Relíquia Glacial",
   "item.relicmod.shadow_relic": "Relíquia Sombria",
@@ -16,5 +16,8 @@
   "death.attack.relicmod_storm": "%1$s foi fulminado por um raio",
   "death.attack.relicmod_storm.player": "%1$s foi fulminado pelo raio de %2$s",
   "death.attack.relicmod_storm_beam": "%1$s foi desintegrado por um feixe da tempestade",
-  "death.attack.relicmod_storm_beam.player": "%1$s foi desintegrado pelo feixe da tempestade de %2$s"
+  "death.attack.relicmod_storm_beam.player": "%1$s foi desintegrado pelo feixe da tempestade de %2$s",
+  "effect.relicmod.frozen": "Congelamento",
+  "death.attack.relicmod_frost": "%1$s foi congelado",
+  "death.attack.relicmod_frost.player": "%1$s foi congelado por %2$s"
 }

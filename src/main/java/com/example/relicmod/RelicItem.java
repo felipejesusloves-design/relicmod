@@ -67,6 +67,12 @@ public abstract class RelicItem extends Item {
         }
     }
 
+    /** A habilidade padrão já está recarregada? (usado pelo ícone da Glacial) */
+    public static boolean standardReady(ServerPlayerEntity p) {
+        Integer until = STANDARD_READY.get(p.getUuid());
+        return until == null || now(p) >= until;
+    }
+
     private static int now(ServerPlayerEntity p) {
         return p.getEntityWorld().getServer().getTicks();
     }

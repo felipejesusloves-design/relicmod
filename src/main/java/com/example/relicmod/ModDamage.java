@@ -25,6 +25,9 @@ public class ModDamage {
     public static final RegistryKey<DamageType> STORM_BEAM =
             RegistryKey.of(RegistryKeys.DAMAGE_TYPE, Identifier.of(RelicMod.MOD_ID, "storm_beam"));
 
+    public static final RegistryKey<DamageType> FROST =
+            RegistryKey.of(RegistryKeys.DAMAGE_TYPE, Identifier.of(RelicMod.MOD_ID, "frost"));
+
     public static DamageSource of(ServerWorld world, RegistryKey<DamageType> key, ServerPlayerEntity owner) {
         RegistryEntry<DamageType> type = world.getRegistryManager().getOrThrow(RegistryKeys.DAMAGE_TYPE).getOrThrow(key);
         return new DamageSource(type, owner, owner);

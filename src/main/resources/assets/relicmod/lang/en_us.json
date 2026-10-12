@@ -1,4 +1,4 @@
-﻿{
+{
   "item.relicmod.igneous_relic": "Igneous Relic",
   "item.relicmod.glacial_relic": "Glacial Relic",
   "item.relicmod.shadow_relic": "Shadow Relic",
@@ -16,5 +16,8 @@
   "death.attack.relicmod_storm": "%1$s was struck down by lightning",
   "death.attack.relicmod_storm.player": "%1$s was struck down by %2$s's lightning",
   "death.attack.relicmod_storm_beam": "%1$s was obliterated by a storm beam",
-  "death.attack.relicmod_storm_beam.player": "%1$s was obliterated by %2$s's storm beam"
+  "death.attack.relicmod_storm_beam.player": "%1$s was obliterated by %2$s's storm beam",
+  "effect.relicmod.frozen": "Frozen",
+  "death.attack.relicmod_frost": "%1$s was frozen solid",
+  "death.attack.relicmod_frost.player": "%1$s was frozen solid by %2$s"
 }
