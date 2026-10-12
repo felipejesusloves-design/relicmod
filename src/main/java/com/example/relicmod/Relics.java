@@ -41,6 +41,11 @@ public class Relics {
             if (energy >= 0 && burning) {
                 effect(p, StatusEffects.STRENGTH, 60, energy >= 5 ? 1 : 0);
             }
+            // NOVO: aura de chamas + fumaça enquanto queima
+            if (burning && p.getEntityWorld() instanceof ServerWorld w) {
+                w.spawnParticles(ParticleTypes.FLAME, p.getX(), p.getY() + 0.5, p.getZ(), 4, 0.3, 0.5, 0.3, 0.02);
+                w.spawnParticles(ParticleTypes.LARGE_SMOKE, p.getX(), p.getY() + 1.2, p.getZ(), 1, 0.2, 0.3, 0.2, 0.02);
+            }
         }
 
         /** Nado na lava: correndo (Ctrl) dentro da lava, você avança para onde olha, como na água. */
@@ -48,6 +53,11 @@ public class Relics {
             if (!p.isInLava() || !p.isSprinting()) return;
             p.setVelocity(p.getRotationVec(1.0f).multiply(0.18));
             p.networkHandler.sendPacket(new EntityVelocityUpdateS2CPacket(p));
+            // NOVO: faíscas de lava + chamas ao nadar
+            if (p.getEntityWorld() instanceof ServerWorld w && w.getServer().getTicks() % 4 == 0) {
+                w.spawnParticles(ParticleTypes.LAVA, p.getX(), p.getY() + 0.5, p.getZ(), 2, 0.3, 0.2, 0.3, 0.1);
+                w.spawnParticles(ParticleTypes.FLAME, p.getX(), p.getY() + 0.8, p.getZ(), 3, 0.4, 0.3, 0.4, 0.02);
+            }
         }
 
         @Override protected boolean useStandard(ServerPlayerEntity p, ServerWorld w, int energy) {
@@ -65,8 +75,12 @@ public class Relics {
 
         @Override public boolean hasUltimate() { return true; }
 
-        /** A passiva da Glacial acontece nos golpes críticos (veja GlacialPower). */
-        @Override public void applyPassive(ServerPlayerEntity p, int energy) {}
+        /** NOVO: aura de flocos de neve em volta do corpo (a passiva de críticos está na GlacialPower). */
+        @Override public void applyPassive(ServerPlayerEntity p, int energy) {
+            if (p.getEntityWorld() instanceof ServerWorld w) {
+                w.spawnParticles(ParticleTypes.SNOWFLAKE, p.getX(), p.getY() + 1.0, p.getZ(), 3, 0.35, 0.5, 0.35, 0.01);
+            }
+        }
 
         @Override protected boolean useStandard(ServerPlayerEntity p, ServerWorld w, int energy) {
             return GlacialPower.standard(p, w);
@@ -89,8 +103,15 @@ public class Relics {
 
         @Override public boolean hasUltimate() { return true; }
 
+        /** NOVO: cinzas subindo dos pés (mais fortes com velocidade alta) + alma extra no nível III. */
         @Override public void applyPassive(ServerPlayerEntity p, int energy) {
             effect(p, StatusEffects.SPEED, 60, speedAmp(energy));
+            if (p.getEntityWorld() instanceof ServerWorld w) {
+                w.spawnParticles(ParticleTypes.ASH, p.getX(), p.getY() + 0.2, p.getZ(), 2 + speedAmp(energy), 0.3, 0.1, 0.3, 0.02);
+                if (speedAmp(energy) >= 2) {
+                    w.spawnParticles(ParticleTypes.SOUL, p.getX(), p.getY() + 1.0, p.getZ(), 1, 0.2, 0.4, 0.2, 0.02);
+                }
+            }
         }
 
         @Override protected boolean useStandard(ServerPlayerEntity p, ServerWorld w, int energy) {
@@ -114,8 +135,9 @@ public class Relics {
                 return false;
             }
 
+            // NOVO: vórtice de portal na saída + portal tradicional
+            VFX.spawnTeleportVortex(w, p.getBlockPos());
             w.spawnParticles(ParticleTypes.PORTAL, p.getX(), p.getY() + 1, p.getZ(), 30, 0.3, 0.6, 0.3, 0.2);
-            w.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.ENTITY_ENDERMAN_TELEPORT, SoundCategory.PLAYERS, 0.8f, 1.4f);
 
             double tx = p.getX() + look.x * best;
             double ty = p.getY() + look.y * best;
@@ -126,42 +148,4 @@ public class Relics {
             p.setVelocity(look.multiply(0.5));
             p.networkHandler.sendPacket(new EntityVelocityUpdateS2CPacket(p));
             // dash para cima anula a queda
-            if (look.y > 0.3) p.fallDistance = 0;
-
-            w.spawnParticles(ParticleTypes.PORTAL, tx, ty + 1, tz, 30, 0.3, 0.6, 0.3, 0.2);
-            return true;
-        }
-
-        @Override protected boolean useUltimate(ServerPlayerEntity p, ServerWorld w, int energy) {
-            return ShadowStun.arm(p, w);
-        }
-
-        /** O jogador cabe nessa posição? Confere pés, meio e cabeça. */
-        private static boolean isClear(ServerWorld w, double x, double y, double z) {
-            double[] heights = {0.05, 0.9, 1.7};
-            for (double h : heights) {
-                BlockPos pos = BlockPos.ofFloored(x, y + h, z);
-                if (!w.getBlockState(pos).getCollisionShape(w, pos).isEmpty()) return false;
-            }
-            return true;
-        }
-    }
-
-    // ---------- TEMPESTADE ----------
-    public static class Storm extends RelicItem {
-        public Storm(Settings s) { super(s, 20 * 10, 20 * 120); }
-
-        @Override public boolean hasUltimate() { return true; }
-
-        /** A passiva da Tempestade acontece nos golpes (veja StormPower). */
-        @Override public void applyPassive(ServerPlayerEntity p, int energy) {}
-
-        @Override protected boolean useStandard(ServerPlayerEntity p, ServerWorld w, int energy) {
-            return StormPower.standard(p, w, energy);
-        }
-
-        @Override protected boolean useUltimate(ServerPlayerEntity p, ServerWorld w, int energy) {
-            return StormPower.channel(p, w);
-        }
-    }
-}
+            if (look.y > 
