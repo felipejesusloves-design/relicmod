@@ -94,8 +94,16 @@ public class Volcano {
         transform(v);
         ACTIVE.add(v);
 
-        w.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.PLAYERS, 1.0f, 0.5f);
-        w.spawnParticles(ParticleTypes.EXPLOSION_EMITTER, p.getX(), p.getY() + 0.5, p.getZ(), 1, 0, 0, 0, 0);
+        // ERUPÇÃO: coluna de fogo no centro + anel de chamas e fumaça na borda da área
+        VFX.spawnVolcanoEruption(w, p.getBlockPos());
+        for (int i = 0; i < 32; i++) {
+            double angle = i * (Math.PI * 2 / 32);
+            double x = p.getX() + Math.cos(angle) * RADIUS;
+            double z = p.getZ() + Math.sin(angle) * RADIUS;
+            w.spawnParticles(ParticleTypes.FLAME, x, p.getY() + 1, z, 4, 0.2, 0.4, 0.2, 0.05);
+            w.spawnParticles(ParticleTypes.LARGE_SMOKE, x, p.getY() + 1.5, z, 2, 0.1, 0.3, 0.1, 0.03);
+        }
+        w.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.PLAYERS, 2.0f, 0.5f);
         p.sendMessage(Text.literal("Vulcão ativado: 15 segundos."), true);
         return true;
     }
@@ -109,12 +117,11 @@ public class Volcano {
                 if (dx * dx + dz * dz > RADIUS * RADIUS) continue;
                 int x = cx + dx, z = cz + dz;
 
-                // procura o primeiro bloco sólido da coluna, de cima para baixo
                 for (int y = cy + 3; y >= cy - HALF_HEIGHT; y--) {
                     BlockPos pos = new BlockPos(x, y, z);
                     BlockState st = w.getBlockState(pos);
-                    if (!st.getFluidState().isEmpty()) break;                     // água/lava: não mexe
-                    if (st.getCollisionShape(w, pos).isEmpty()) continue;         // ar, plantas...
+                    if (!st.getFluidState().isEmpty()) break;
+                    if (st.getCollisionShape(w, pos).isEmpty()) continue;
 
                     BlockPos above = pos.up();
                     if (isNatural(st) && w.getBlockState(above).getCollisionShape(w, above).isEmpty()) {
@@ -122,13 +129,12 @@ public class Volcano {
                         BlockPos below = pos.down();
                         if (isNatural(w.getBlockState(below))) convert(v, below);
 
-                        // fogo em ~20% do chão, longe de qualquer coisa inflamável
                         if (w.getBlockState(above).isAir() && RANDOM.nextInt(100) < 20 && noBurnableNear(w, above)) {
                             v.original.put(above, w.getBlockState(above));
                             w.setBlockState(above, Blocks.FIRE.getDefaultState(), Block.NOTIFY_LISTENERS);
                         }
                     }
-                    break; // só o primeiro bloco sólido de cada coluna
+                    break;
                 }
             }
         }
@@ -166,6 +172,11 @@ public class Volcano {
             Instance v = it.next();
             v.ticksLeft--;
             if (v.ticksLeft <= 0) {
+                // VISUAL DE APAGAMENTO: nuvem de fumaça + chiado de lava esfriando
+                double ex = v.center.getX(), ey = v.center.getY(), ez = v.center.getZ();
+                v.world.spawnParticles(ParticleTypes.LARGE_SMOKE, ex + 0.5, ey + 1, ez + 0.5,
+                        40, RADIUS * 0.6, 1.5, RADIUS * 0.6, 0.05);
+                v.world.playSound(null, ex, ey, ez, SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.PLAYERS, 2.0f, 0.8f);
                 restore(v);
                 it.remove();
                 ServerPlayerEntity owner = server.getPlayerManager().getPlayer(v.owner);
@@ -173,10 +184,21 @@ public class Volcano {
                 continue;
             }
             if (v.ticksLeft % 5 == 0) {
-                v.world.spawnParticles(ParticleTypes.FLAME, v.center.getX() + 0.5, v.center.getY() + 1, v.center.getZ() + 0.5,
+                double cx = v.center.getX(), cy = v.center.getY(), cz = v.center.getZ();
+                // ambiente: chamas, faíscas de lava e colunas de fumaça na área toda
+                v.world.spawnParticles(ParticleTypes.FLAME, cx + 0.5, cy + 1, cz + 0.5,
                         25, RADIUS * 0.6, 1.0, RADIUS * 0.6, 0.02);
-                v.world.spawnParticles(ParticleTypes.LAVA, v.center.getX() + 0.5, v.center.getY() + 1, v.center.getZ() + 0.5,
+                v.world.spawnParticles(ParticleTypes.LAVA, cx + 0.5, cy + 1, cz + 0.5,
                         4, RADIUS * 0.6, 0.5, RADIUS * 0.6, 0.0);
+                v.world.spawnParticles(ParticleTypes.LARGE_SMOKE, cx + 0.5, cy + 2, cz + 0.5,
+                        6, RADIUS * 0.5, 1.5, RADIUS * 0.5, 0.03);
+                // mini-erupções aleatórias em pontos diferentes da área
+                double a = RANDOM.nextDouble() * Math.PI * 2;
+                double r = RANDOM.nextDouble() * RADIUS;
+                double sx = cx + 0.5 + Math.cos(a) * r;
+                double sz = cz + 0.5 + Math.sin(a) * r;
+                v.world.spawnParticles(ParticleTypes.LAVA, sx, cy + 1, sz, 8, 0.2, 0.3, 0.2, 0.1);
+                v.world.spawnParticles(ParticleTypes.FLAME, sx, cy + 1, sz, 6, 0.2, 0.4, 0.2, 0.04);
             }
             if (v.ticksLeft % 20 == 0) damageTick(server, v);
         }
