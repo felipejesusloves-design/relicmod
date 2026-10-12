@@ -1,6 +1,8 @@
 package com.example.relicmod;
 
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.item.Item;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
@@ -18,6 +20,7 @@ import java.util.UUID;
 public abstract class RelicItem extends Item {
     private static final Map<UUID, Integer> STANDARD_READY = new HashMap<>();
     private static final Map<UUID, Integer> ULTIMATE_READY = new HashMap<>();
+    private static final Map<UUID, Integer> HUD_LAST = new HashMap<>();
 
     private final int standardCooldown;
     private final int ultimateCooldown;
@@ -72,6 +75,38 @@ public abstract class RelicItem extends Item {
         Integer until = STANDARD_READY.get(p.getUuid());
         return until == null || now(p) >= until;
     }
+
+    // ---------- NOVO: tempo restante para o HUD de cooldowns ----------
+
+    /** Segundos restantes do cooldown padrão (0 = pronta). */
+    public static int standardLeft(ServerPlayerEntity p) { return left(p, STANDARD_READY); }
+
+    /** Segundos restantes da ultimate (0 = pronta). */
+    public static int ultimateLeft(ServerPlayerEntity p) { return left(p, ULTIMATE_READY); }
+
+    private static int left(ServerPlayerEntity p, Map<UUID, Integer> map) {
+        Integer until = map.get(p.getUuid());
+        if (until == null) return 0;
+        int rem = until - now(p);
+        return rem <= 0 ? 0 : (rem + 19) / 20;
+    }
+
+    /** Avisa o cliente sempre que o cooldown muda (chamado pelo RelicMod a cada tick). */
+    public static void tickHud(MinecraftServer server) {
+        if (server.getTicks() % 10 != 0) return;
+        for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+            int s = standardLeft(p);
+            int u = ultimateLeft(p);
+            int key = s * 1000 + u;
+            Integer last = HUD_LAST.get(p.getUuid());
+            if (last == null || last != key) {
+                ServerPlayNetworking.send(p, new CooldownHudPayload(s, u));
+                HUD_LAST.put(p.getUuid(), key);
+            }
+        }
+    }
+
+    // ---------- interno ----------
 
     private static int now(ServerPlayerEntity p) {
         return p.getEntityWorld().getServer().getTicks();
