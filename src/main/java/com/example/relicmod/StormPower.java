@@ -44,9 +44,10 @@ public class StormPower {
     public static final int CHANNEL_TICKS = 20 * 2;     // canalizacao da ultimate
     public static final double BEAM_RANGE = 30;         // alcance do feixe
 
-    private static final float PASSIVE_DAMAGE = 4.0f;   // 2 coracoes
+    public static final int CRITS_NEEDED = 3;           // criticos seguidos para ativar o estado
+    private static final float PASSIVE_DAMAGE = 2.0f;   // 1 coracao
     private static final float STANDARD_DAMAGE = 6.0f;  // 3 coracoes
-    private static final float BEAM_DAMAGE = 20.0f;     // 10 coracoes
+    private static final float BEAM_DAMAGE = 33.0f;     // 16,5 coracoes
 
     private static class Combo {
         int crits;
@@ -79,7 +80,7 @@ public class StormPower {
             ModDamage.hit(w, target, ModDamage.STORM, p, PASSIVE_DAMAGE);
         } else if (isCritical(p)) {
             c.crits++;
-            if (c.crits >= 2) {
+            if (c.crits >= CRITS_NEEDED) {
                 c.active = true;
                 c.crits = 0;
                 p.sendMessage(Text.literal("Tempestade carregada: seus golpes invocam raios!"), true);
@@ -266,14 +267,12 @@ public class StormPower {
 
     // ------------------------------------------------------------------ utilidades
 
-    /** Raio que nao gera fogo: feito via particulas de flash/eletricidade e sons estrondosos de raio. */
+    /** Raio de verdade, mas so visual: nao causa dano nem fogo, nao transforma aldeoes nem carrega creepers. */
     private static void bolt(ServerWorld w, double x, double y, double z) {
-        // Particulas volumosas de raio vertical
-        for (double dy = 0; dy <= 20; dy += 1.0) {
-            w.spawnParticles(ParticleTypes.ELECTRIC_SPARK, x, y + dy, z, 5, 0.3, 0.5, 0.3, 0.15);
-        }
-        w.spawnParticles(ParticleTypes.FIREWORK, x, y + 1.0, z, 10, 0.5, 0.5, 0.5, 0.1);
-        w.playSound(null, x, y, z, SoundEvents.ENTITY_LIGHTNING_BOLT_THUNDER, SoundCategory.PLAYERS, 2.0f, 1.0f);
-        w.playSound(null, x, y, z, SoundEvents.ENTITY_LIGHTNING_BOLT_IMPACT, SoundCategory.PLAYERS, 1.5f, 1.2f);
+        LightningEntity bolt = EntityType.LIGHTNING_BOLT.create(w, SpawnReason.TRIGGERED);
+        if (bolt == null) return;
+        bolt.setPosition(x, y, z);
+        bolt.setCosmetic(true);
+        w.spawnEntity(bolt);
     }
 }
