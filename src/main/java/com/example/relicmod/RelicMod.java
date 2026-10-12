@@ -5,6 +5,7 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
 import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
@@ -37,7 +38,6 @@ public class RelicMod implements ModInitializer {
         ModEffects.init();
         RelicCommand.register();
 
-        // Rede: cliente -> servidor (apertou a tecla)
         PayloadTypeRegistry.playC2S().register(UseAbilityPayload.ID, UseAbilityPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(GlacialHudPayload.ID, GlacialHudPayload.CODEC);
         ServerPlayNetworking.registerGlobalReceiver(UseAbilityPayload.ID, (payload, context) -> {
@@ -46,7 +46,6 @@ public class RelicMod implements ModInitializer {
             else RelicData.useStandard(player);
         });
 
-        // Primeiro login: sorteia a relíquia
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             ServerPlayerEntity player = handler.player;
             if (RelicData.getRelicId(player) == null) {
@@ -57,7 +56,6 @@ public class RelicMod implements ModInitializer {
             RelicData.ensureRelic(player);
         });
 
-        // Ultimate da Sombra: o primeiro golpe depois de ativar paralisa e amaldiçoa
         AttackEntityCallback.EVENT.register(ShadowStun::onAttack);
         AttackEntityCallback.EVENT.register(StormPower::onAttack);
         AttackEntityCallback.EVENT.register(GlacialPower::onAttack);
@@ -76,7 +74,6 @@ public class RelicMod implements ModInitializer {
             GlacialPower.releaseAll(server);
         });
 
-        // Vulcão da Ígnea: ninguém quebra nem coloca blocos dentro da área
         PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) -> !Volcano.isProtected(world, pos));
         UseBlockCallback.EVENT.register((player, world, hand, hit) -> {
             Item held = player.getStackInHand(hand).getItem();
@@ -88,7 +85,17 @@ public class RelicMod implements ModInitializer {
             return ActionResult.PASS;
         });
 
-        // Vulcão: o usuário causa +50% de dano de todas as fontes
+        // NOVO: Permite quebrar blocos de gelo da Glacial
+        AttackBlockCallback.EVENT.register((player, world, hand, pos, direction) -> {
+            if (world instanceof ServerWorld serverWorld && player instanceof ServerPlayerEntity sp) {
+                if (GlacialPower.isGlacialIce(serverWorld, pos)) {
+                    GlacialPower.breakIceAndFree(serverWorld, pos, sp);
+                    return ActionResult.SUCCESS;
+                }
+            }
+            return ActionResult.PASS;
+        });
+
         ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, baseDamageTaken, damageTaken, blocked) -> {
             if (blocked || damageTaken <= 0) return;
             if (entity instanceof ServerPlayerEntity hurt) StormPower.onDamaged(hurt);
@@ -101,7 +108,6 @@ public class RelicMod implements ModInitializer {
             }
         });
 
-        // Relíquia largada no chão é apagada na hora (a verdadeira volta ao inventário)
         ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
             if (entity instanceof ItemEntity itemEntity
                     && itemEntity.getStack().getItem() instanceof RelicItem) {
@@ -109,14 +115,12 @@ public class RelicMod implements ModInitializer {
             }
         });
 
-        // Soulbound: tira do inventário ao morrer e devolve no respawn
         ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) -> {
             if (entity instanceof ServerPlayerEntity player) RelicData.removeRelics(player);
             return true;
         });
         ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> RelicData.ensureRelic(newPlayer));
 
-        // Energia: morrer = -1, matar outro jogador = +1
         ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> {
             if (entity instanceof ServerPlayerEntity victim) {
                 EnergyData.add(victim, -1);
@@ -126,7 +130,6 @@ public class RelicMod implements ModInitializer {
             }
         });
 
-        // Todo tick: possessão. A cada 5 ticks: garante a relíquia. A cada 20 ticks: passiva e energia.
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             ShadowStun.tick(server);
             Fireballs.tick(server);
@@ -135,7 +138,6 @@ public class RelicMod implements ModInitializer {
             GlacialPower.tick(server);
             int tick = server.getTicks();
 
-            // nado na lava (Ígnea)
             for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
                 if (player.isInLava() && RelicData.getRelicItem(player) instanceof Relics.Igneous) {
                     Relics.Igneous.lavaSwim(player);
