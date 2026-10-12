@@ -148,4 +148,48 @@ public class Relics {
             p.setVelocity(look.multiply(0.5));
             p.networkHandler.sendPacket(new EntityVelocityUpdateS2CPacket(p));
             // dash para cima anula a queda
-            if (look.y > 
+            if (look.y > 0.3) p.fallDistance = 0;
+
+            // NOVO: vórtice de portal na chegada + portal tradicional
+            VFX.spawnTeleportVortex(w, BlockPos.ofFloored(tx, ty, tz));
+            w.spawnParticles(ParticleTypes.PORTAL, tx, ty + 1, tz, 30, 0.3, 0.6, 0.3, 0.2);
+            return true;
+        }
+
+        @Override protected boolean useUltimate(ServerPlayerEntity p, ServerWorld w, int energy) {
+            return ShadowStun.arm(p, w);
+        }
+
+        /** O jogador cabe nessa posição? Confere pés, meio e cabeça. */
+        private static boolean isClear(ServerWorld w, double x, double y, double z) {
+            double[] heights = {0.05, 0.9, 1.7};
+            for (double h : heights) {
+                BlockPos pos = BlockPos.ofFloored(x, y + h, z);
+                if (!w.getBlockState(pos).getCollisionShape(w, pos).isEmpty()) return false;
+            }
+            return true;
+        }
+    }
+    
+    // ---------- TEMPESTADE ----------
+    public static class Storm extends RelicItem {
+        public Storm(Settings s) { super(s, 20 * 10, 20 * 120); }
+
+        @Override public boolean hasUltimate() { return true; }
+
+        /** NOVO: faíscas elétricas crepitando em volta do corpo (a passiva de golpes está na StormPower). */
+        @Override public void applyPassive(ServerPlayerEntity p, int energy) {
+            if (p.getEntityWorld() instanceof ServerWorld w) {
+                w.spawnParticles(ParticleTypes.ELECTRIC_SPARK, p.getX(), p.getY() + 1.2, p.getZ(), 2, 0.3, 0.4, 0.3, 0.05);
+            }
+        }
+
+        @Override protected boolean useStandard(ServerPlayerEntity p, ServerWorld w, int energy) {
+            return StormPower.standard(p, w, energy);
+        }
+
+        @Override protected boolean useUltimate(ServerPlayerEntity p, ServerWorld w, int energy) {
+            return StormPower.channel(p, w);
+        }
+    }
+}
