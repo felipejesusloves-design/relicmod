@@ -1,6 +1,5 @@
 package com.example.relicmod;
 
-import net.minecraft.block.BlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LightningEntity;
@@ -34,20 +33,19 @@ import java.util.UUID;
 
 /**
  * Poderes da Tempestade.
- *  Passiva: 2 golpes criticos seguidos (golpes com a barra cheia, sem levar dano) liberam raios em cada golpe.
+ *  Passiva: 3 golpes criticos seguidos liberam raios em cada golpe.
  *  Padrao: raio onde voce mira (dano + paralisia, ou buffs se cair em voce).
- *  Ultimate: canaliza 2 s e solta um feixe horizontal (estrondo do Warden + raio de tempestade).
- * Todos os raios sao puramente visuais/sonoros sem gerar fogo no chao.
+ *  Ultimate: canaliza 2 s e solta um feixe horizontal.
  */
 public class StormPower {
-    public static final int COMBO_TIMEOUT = 20 * 6;     // sem acertar ninguem por 6 s: o estado acaba
-    public static final int CHANNEL_TICKS = 20 * 2;     // canalizacao da ultimate
-    public static final double BEAM_RANGE = 30;         // alcance do feixe
+    public static final int COMBO_TIMEOUT = 20 * 6;
+    public static final int CHANNEL_TICKS = 20 * 2;
+    public static final double BEAM_RANGE = 30;
 
-    public static final int CRITS_NEEDED = 3;           // criticos seguidos para ativar o estado
-    private static final float PASSIVE_DAMAGE = 2.0f;   // 1 coracao
-    private static final float STANDARD_DAMAGE = 6.0f;  // 3 coracoes
-    private static final float BEAM_DAMAGE = 33.0f;     // 16,5 coracoes
+    public static final int CRITS_NEEDED = 3;
+    private static final float PASSIVE_DAMAGE = 2.0f;
+    private static final float STANDARD_DAMAGE = 6.0f;
+    private static final float BEAM_DAMAGE = 33.0f;
 
     private static class Combo {
         int crits;
@@ -64,12 +62,11 @@ public class StormPower {
 
     // ------------------------------------------------------------------ PASSIVA
 
-    /** Ligado ao evento de ataque do Fabric. So reage ao golpe, nao o cancela. */
     public static ActionResult onAttack(PlayerEntity player, World world, Hand hand, Entity entity, EntityHitResult hit) {
         if (!(player instanceof ServerPlayerEntity p)) return ActionResult.PASS;
         if (!(RelicData.getRelicItem(p) instanceof Relics.Storm)) return ActionResult.PASS;
         if (!(entity instanceof LivingEntity target) || !target.isAlive() || target.isSpectator()) return ActionResult.PASS;
-        if (p.getAttackCooldownProgress(0.5f) <= 0.9f) return ActionResult.PASS; // golpe fraco nao conta
+        if (p.getAttackCooldownProgress(0.5f) <= 0.9f) return ActionResult.PASS;
 
         ServerWorld w = p.getEntityWorld();
         Combo c = COMBOS.computeIfAbsent(p.getUuid(), k -> new Combo());
@@ -77,27 +74,30 @@ public class StormPower {
 
         if (c.active) {
             bolt(w, target.getX(), target.getY(), target.getZ());
+            VFX.spawnLightningArc(w, p, target); // NOVO: arco eletrico voce -> alvo
             ModDamage.hit(w, target, ModDamage.STORM, p, PASSIVE_DAMAGE);
         } else if (isCritical(p)) {
             c.crits++;
             if (c.crits >= CRITS_NEEDED) {
                 c.active = true;
                 c.crits = 0;
+                // NOVO: explosao de faiscas ao carregar a tempestade
+                w.spawnParticles(ParticleTypes.ELECTRIC_SPARK, p.getX(), p.getY() + 1, p.getZ(), 40, 0.8, 1.0, 0.8, 0.4);
+                w.spawnParticles(ParticleTypes.FIREWORK, p.getX(), p.getY() + 1, p.getZ(), 1, 0, 0, 0, 0);
+                w.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.ENTITY_LIGHTNING_BOLT_THUNDER, SoundCategory.PLAYERS, 0.6f, 1.5f);
                 p.sendMessage(Text.literal("Tempestade carregada: seus golpes invocam raios!"), true);
             }
         } else {
-            c.crits = 0; // golpe cheio sem ser critico quebra o combo
+            c.crits = 0;
         }
         return ActionResult.PASS;
     }
 
-    /** Mesmas regras do critico do jogo (golpe caindo, sem correr). */
     private static boolean isCritical(ServerPlayerEntity p) {
         return p.fallDistance > 0 && !p.isOnGround() && !p.isClimbing() && !p.isTouchingWater()
                 && !p.hasStatusEffect(StatusEffects.BLINDNESS) && !p.hasVehicle() && !p.isSprinting();
     }
 
-    /** O usuario levou dano: o combo e o estado acabam. */
     public static void onDamaged(ServerPlayerEntity p) {
         Combo c = COMBOS.get(p.getUuid());
         if (c == null) return;
@@ -114,10 +114,18 @@ public class StormPower {
 
     // ------------------------------------------------------------------ PADRAO
 
-    /** Raio onde voce mira. Dano e paralisia nos outros; buffs se cair em voce. */
     public static boolean standard(ServerPlayerEntity p, ServerWorld w, int energy) {
         Vec3d pos = aimPoint(p, w, 40);
         bolt(w, pos.x, pos.y, pos.z);
+
+        // NOVO: anel de faiscas + fogos no ponto de impacto
+        w.spawnParticles(ParticleTypes.FIREWORK, pos.x, pos.y + 1, pos.z, 1, 0, 0, 0, 0);
+        for (int i = 0; i < 16; i++) {
+            double angle = i * (Math.PI * 2 / 16);
+            w.spawnParticles(ParticleTypes.ELECTRIC_SPARK,
+                    pos.x + Math.cos(angle) * 2.0, pos.y + 0.5, pos.z + Math.sin(angle) * 2.0,
+                    3, 0.1, 0.3, 0.1, 0.1);
+        }
 
         int amp = energy >= 4 ? 1 : 0;
         Box area = new Box(pos.x - 3, pos.y - 3, pos.z - 3, pos.x + 3, pos.y + 3, pos.z + 3);
@@ -129,13 +137,13 @@ public class StormPower {
                 p.addStatusEffect(new StatusEffectInstance(StatusEffects.REGENERATION, 200, amp, false, true));
             } else {
                 ModDamage.hit(w, e, ModDamage.STORM, p, STANDARD_DAMAGE);
+                VFX.spawnLightningArc(w, p, e); // NOVO: arco eletrico ate cada alvo
                 ShadowStun.paralyze(e, 20, false);
             }
         }
         return true;
     }
 
-    /** Ser na sua mira (ate o alcance); se nao houver, o ponto do bloco/chao. */
     private static Vec3d aimPoint(ServerPlayerEntity p, ServerWorld w, double range) {
         Vec3d eye = p.getEyePos();
         Vec3d look = p.getRotationVec(1.0f);
@@ -148,7 +156,6 @@ public class StormPower {
             if (dist > range || dist < 0.5) continue;
             double dot = to.normalize().dotProduct(look);
             if (dot > bestDot) {
-                // Checa se ha bloco bloqueando a visao
                 BlockHitResult bHit = w.raycast(new RaycastContext(eye, e.getEyePos(),
                         RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, p));
                 if (bHit.getType() == HitResult.Type.MISS) {
@@ -163,7 +170,6 @@ public class StormPower {
 
     // ------------------------------------------------------------------ ULTIMATE
 
-    /** Comeca a canalizar. O feixe sai quando os 2 segundos acabam. */
     public static boolean channel(ServerPlayerEntity p, ServerWorld w) {
         if (CHANNELS.containsKey(p.getUuid())) return false;
         CHANNELS.put(p.getUuid(), new Channel());
@@ -172,11 +178,9 @@ public class StormPower {
         return true;
     }
 
-    /** Todo tick do servidor. */
     public static void tick(MinecraftServer server) {
         int now = server.getTicks();
 
-        // estado da passiva expira se ficar 6 s sem acertar ninguem
         for (Map.Entry<UUID, Combo> entry : COMBOS.entrySet()) {
             Combo c = entry.getValue();
             if ((c.active || c.crits > 0) && now - c.lastHit > COMBO_TIMEOUT) {
@@ -210,7 +214,6 @@ public class StormPower {
         }
     }
 
-    /** Almas de sculk girando em volta de voce + faiscas eletricas, cada vez mais intensas. */
     private static void channelParticles(ServerPlayerEntity p, ServerWorld w, Channel ch) {
         double angle = ch.ticksLeft * 0.6;
         double radius = 1.3;
@@ -226,12 +229,10 @@ public class StormPower {
         }
     }
 
-    /** Feixe horizontal: atravessa todos os seres da linha e para no primeiro bloco. */
     private static void fireBeam(ServerPlayerEntity p, ServerWorld w) {
         Vec3d look = p.getRotationVec(1.0f).normalize();
         Vec3d start = p.getEyePos().add(look.multiply(0.5)).subtract(0, 0.2, 0);
 
-        // ate onde o feixe vai (para no primeiro bloco)
         double len = BEAM_RANGE;
         for (double d = 0.5; d <= BEAM_RANGE; d += 0.5) {
             Vec3d pt = start.add(look.multiply(d));
@@ -243,7 +244,6 @@ public class StormPower {
         }
         Vec3d end = start.add(look.multiply(len));
 
-        // visual: ondas de estrondo + faiscas eletricas ao longo do feixe
         for (double d = 0; d <= len; d += 0.5) {
             Vec3d pt = start.add(look.multiply(d));
             if (d % 1.5 == 0) {
@@ -251,10 +251,12 @@ public class StormPower {
             }
             w.spawnParticles(ParticleTypes.ELECTRIC_SPARK, pt.x, pt.y, pt.z, 4, 0.25, 0.25, 0.25, 0.2);
         }
+        // NOVO: explosao de fogos no fim do feixe
+        w.spawnParticles(ParticleTypes.FIREWORK, end.x, end.y, end.z, 1, 0, 0, 0, 0);
+        w.spawnParticles(ParticleTypes.EXPLOSION, end.x, end.y + 0.5, end.z, 3, 0.3, 0.3, 0.3, 0.05);
         w.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.ENTITY_WARDEN_SONIC_BOOM, SoundCategory.PLAYERS, 3.0f, 1.0f);
-        bolt(w, end.x, end.y, end.z); // raio de tempestade no fim do feixe
+        bolt(w, end.x, end.y, end.z);
 
-        // dano: 10 coracoes, ignora so o efeito dos encantamentos de protecao
         Box sweep = new Box(start, end).expand(3.0);
         for (LivingEntity e : w.getEntitiesByClass(LivingEntity.class, sweep,
                 ent -> ent != p && ent.isAlive() && !ent.isSpectator())) {
@@ -267,7 +269,6 @@ public class StormPower {
 
     // ------------------------------------------------------------------ utilidades
 
-    /** Raio de verdade, mas so visual: nao causa dano nem fogo, nao transforma aldeoes nem carrega creepers. */
     private static void bolt(ServerWorld w, double x, double y, double z) {
         LightningEntity bolt = EntityType.LIGHTNING_BOLT.create(w, SpawnReason.TRIGGERED);
         if (bolt == null) return;
