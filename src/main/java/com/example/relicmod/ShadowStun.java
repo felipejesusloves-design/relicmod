@@ -30,13 +30,13 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Ultimate da Sombra: ao ativar, o próximo golpe do usuário (jogador ou mob) paralisa o alvo
+ * Ultimate da Sombra: ao ativar, o próximo golpe do usuário paralisa o alvo
  * por 3 s (sem andar, sem pular, sem enxergar) e aplica Amaldiçoado por 20 s.
  */
 public class ShadowStun {
-    public static final int ARM_TICKS = 20 * 15;    // tempo para acertar o golpe depois de ativar
-    public static final int STUN_TICKS = 20 * 3;    // paralisia
-    public static final int CURSE_TICKS = 20 * 20;  // Amaldiçoado
+    public static final int ARM_TICKS = 20 * 15;
+    public static final int STUN_TICKS = 20 * 3;
+    public static final int CURSE_TICKS = 20 * 20;
 
     private static final Identifier STUN_ID = Identifier.of(RelicMod.MOD_ID, "shadow_stun");
 
@@ -46,9 +46,7 @@ public class ShadowStun {
         Stun(int ticksLeft, boolean hadNoAi) { this.ticksLeft = ticksLeft; this.hadNoAi = hadNoAi; }
     }
 
-    /** jogador -> tick em que a sombra se dissipa */
     private static final Map<UUID, Integer> ARMED = new HashMap<>();
-    /** alvo -> paralisia em andamento */
     private static final Map<UUID, Stun> STUNNED = new HashMap<>();
 
     /** Ativa a ultimate: o próximo golpe será o golpe sombrio. */
@@ -58,7 +56,15 @@ public class ShadowStun {
             return false;
         }
         ARMED.put(p.getUuid(), w.getServer().getTicks() + ARM_TICKS);
-        w.spawnParticles(ParticleTypes.SOUL, p.getX(), p.getY() + 1, p.getZ(), 40, 0.4, 0.8, 0.4, 0.05);
+        // NOVO: espiral de almas subindo em volta do jogador
+        for (int i = 0; i < 28; i++) {
+            double angle = i * (Math.PI * 2 / 14);
+            double height = 0.2 + (i / 28.0) * 2.2;
+            w.spawnParticles(ParticleTypes.SOUL,
+                    p.getX() + Math.cos(angle) * 1.1, p.getY() + height, p.getZ() + Math.sin(angle) * 1.1,
+                    1, 0, 0.04, 0, 0.02);
+        }
+        w.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, p.getX(), p.getY() + 0.2, p.getZ(), 20, 0.5, 0.1, 0.5, 0.05);
         w.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.ENTITY_ELDER_GUARDIAN_CURSE, SoundCategory.PLAYERS, 0.8f, 1.0f);
         p.sendMessage(Text.literal("Sombra armada: seu próximo golpe paralisa e amaldiçoa (15 s)."), true);
         return true;
@@ -95,13 +101,11 @@ public class ShadowStun {
 
     private static void stun(ServerPlayerEntity attacker, LivingEntity target) {
         paralyze(target, STUN_TICKS, true);
-        // maldição: -3 corações de vida máxima por 20 s
         target.addStatusEffect(new StatusEffectInstance(ModEffects.CURSED, CURSE_TICKS, 0, false, true));
         if (target.getHealth() > target.getMaxHealth()) target.setHealth(target.getMaxHealth());
 
         if (target.getEntityWorld() instanceof ServerWorld tw) {
-            tw.spawnParticles(ParticleTypes.SOUL, target.getX(), target.getY() + 1, target.getZ(), 30, 0.4, 0.7, 0.4, 0.05);
-            tw.playSound(null, target.getX(), target.getY(), target.getZ(), SoundEvents.ENTITY_ELDER_GUARDIAN_CURSE, SoundCategory.PLAYERS, 1.0f, 0.8f);
+            VFX.spawnShadowCurse(tw, target); // NOVO: fogo de alma + cinzas + som de wither
         }
         if (target instanceof ServerPlayerEntity tp) {
             tp.sendMessage(Text.literal("Você foi paralisado e amaldiçoado!"), true);
