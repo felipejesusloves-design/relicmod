@@ -187,7 +187,7 @@ public class GlacialPower {
         if (trappedUuid != null) {
             Entity target = world.getEntity(trappedUuid);
             if (target instanceof LivingEntity livingTarget) {
-                livingTarget.damage(world.getDamageSources().playerAttack(attacker), 4.0f);
+                livingTarget.damage(world, world.getDamageSources().playerAttack(attacker), 4.0f);
                 livingTarget.removeStatusEffect(ModEffects.FROZEN);
                 livingTarget.setFrozenTicks(0);
                 world.spawnParticles(ParticleTypes.EXPLOSION, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, 15, 0.3, 0.3, 0.3, 0.1);
