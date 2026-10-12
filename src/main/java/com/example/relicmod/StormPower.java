@@ -1,4 +1,4 @@
-﻿package com.example.relicmod;
+package com.example.relicmod;
 
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.Entity;
