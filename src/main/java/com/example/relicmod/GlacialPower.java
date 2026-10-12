@@ -32,28 +32,20 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Poderes da Glacial.
- *  Passiva: a cada 2 críticos o alvo ganha +1 nível de Congelamento (1 a 4). Sem novas aplicações em 2,5 s,
- *           o nível cai 1. Dano por segundo: 0,5 coração x nível.
- *  Padrão:  congela (cubo de gelo visual por 2 s) todos os seres com Congelamento ao alcance.
- *           Dano: 1,5 coração x nível, ignorando só encantamentos. Dano de um jogador descongela.
- *  Ultimate: nevasca que acompanha o usuário por 15 s. Quem está dentro ganha +1 nível por segundo
- *           e só enxerga névoa branca.
- */
 public class GlacialPower {
     public static final int MAX_LEVEL = 4;
     public static final int CRITS_PER_LEVEL = 2;
-    public static final int DECAY_TICKS = 50;               // 2,5 s
+    public static final int DECAY_TICKS = 50;
     public static final double FREEZE_RANGE = 15;
-    public static final int ICE_TICKS = 40;                 // 2 s
+    public static final int ICE_TICKS = 40;
     public static final int BLIZZARD_TICKS = 20 * 15;
-    public static final double BLIZZARD_RADIUS = 8.5;       // parecido com o vulcão
+    public static final double BLIZZARD_RADIUS = 8.5;
     public static final double BLIZZARD_HALF_HEIGHT = 6;
 
     private static class Frost {
-        int level;          // 0 = só contando críticos
+        int level;
         int crits;
         int timer = DECAY_TICKS;
         UUID attacker;
@@ -74,15 +66,13 @@ public class GlacialPower {
     private static final Map<UUID, Ice> ICE = new HashMap<>();
     private static final Map<UUID, Blizzard> BLIZZARDS = new HashMap<>();
     private static final Map<UUID, Integer> HUD_STATE = new HashMap<>();
+    private static final Map<BlockPos, UUID> TRAPPED_BLOCKS = new ConcurrentHashMap<>();
 
-    // ------------------------------------------------------------------ PASSIVA
-
-    /** Ligado ao evento de ataque do Fabric. Só reage ao golpe, não o cancela. */
     public static ActionResult onAttack(PlayerEntity player, World world, Hand hand, Entity entity, EntityHitResult hit) {
         if (!(player instanceof ServerPlayerEntity p)) return ActionResult.PASS;
         if (!(RelicData.getRelicItem(p) instanceof Relics.Glacial)) return ActionResult.PASS;
         if (!(entity instanceof LivingEntity target) || !target.isAlive() || target.isSpectator()) return ActionResult.PASS;
-        if (p.getAttackCooldownProgress(0.5f) <= 0.9f) return ActionResult.PASS; // golpe fraco não conta
+        if (p.getAttackCooldownProgress(0.5f) <= 0.9f) return ActionResult.PASS;
         if (!isCritical(p)) return ActionResult.PASS;
 
         Frost f = FROST.get(target.getUuid());
@@ -99,23 +89,19 @@ public class GlacialPower {
         return ActionResult.PASS;
     }
 
-    /** Mesmas regras do crítico do jogo (golpe caindo, sem correr). */
     private static boolean isCritical(ServerPlayerEntity p) {
         return p.fallDistance > 0 && !p.isOnGround() && !p.isClimbing() && !p.isTouchingWater()
                 && !p.hasStatusEffect(StatusEffects.BLINDNESS) && !p.hasVehicle() && !p.isSprinting();
     }
 
-    /** Define o nível, reinicia a contagem de 2,5 s e atualiza o efeito. */
     private static void applyLevel(LivingEntity target, Frost f, int newLevel) {
         boolean up = newLevel > f.level;
         f.level = newLevel;
         f.timer = DECAY_TICKS;
         refreshEffect(target, f);
         if (up && target.getEntityWorld() instanceof ServerWorld w) {
-            w.spawnParticles(ParticleTypes.SNOWFLAKE, target.getX(), target.getY() + target.getHeight() / 2, target.getZ(),
-                    15, 0.4, 0.6, 0.4, 0.05);
-            w.playSound(null, target.getX(), target.getY(), target.getZ(), SoundEvents.BLOCK_GLASS_BREAK,
-                    SoundCategory.PLAYERS, 0.5f, 1.8f);
+            w.spawnParticles(ParticleTypes.SNOWFLAKE, target.getX(), target.getY() + target.getHeight() / 2, target.getZ(), 15, 0.4, 0.6, 0.4, 0.05);
+            w.playSound(null, target.getX(), target.getY(), target.getZ(), SoundEvents.BLOCK_GLASS_BREAK, SoundCategory.PLAYERS, 0.5f, 1.8f);
         }
     }
 
@@ -131,9 +117,6 @@ public class GlacialPower {
         target.setFrozenTicks(0);
     }
 
-    // ------------------------------------------------------------------ PADRÃO
-
-    /** Seres com Congelamento ao alcance (e ainda não encaixotados em gelo). */
     private static List<LivingEntity> freezeTargets(ServerPlayerEntity p, ServerWorld w) {
         Box area = p.getBoundingBox().expand(FREEZE_RANGE);
         return w.getEntitiesByClass(LivingEntity.class, area, e -> {
@@ -157,7 +140,6 @@ public class GlacialPower {
     private static void freeze(ServerPlayerEntity p, ServerWorld w, LivingEntity e) {
         Frost f = FROST.get(e.getUuid());
         if (f == null) return;
-        // 1,5 coração x nível (3 de vida por nível), ignorando só encantamentos
         ModDamage.hit(w, e, ModDamage.FROST, p, 3.0f * f.level);
         if (!e.isAlive()) return;
 
@@ -170,7 +152,6 @@ public class GlacialPower {
         w.spawnParticles(ParticleTypes.SNOWFLAKE, e.getX(), e.getY() + e.getHeight() / 2, e.getZ(), 40, 0.5, 0.7, 0.5, 0.1);
     }
 
-    /** Blocos de gelo "falsos": só os jogadores veem, o mundo de verdade não muda. */
     private static void showIce(ServerWorld w, LivingEntity e, Ice ice) {
         Box b = e.getBoundingBox().expand(0.05);
         int x0 = MathHelper.floor(b.minX), x1 = MathHelper.floor(b.maxX);
@@ -181,7 +162,10 @@ public class GlacialPower {
                 for (int z = z0; z <= z1; z++) {
                     if (ice.fake.size() >= 48) break;
                     BlockPos pos = new BlockPos(x, y, z);
-                    if (w.getBlockState(pos).isAir()) ice.fake.add(pos);
+                    if (w.getBlockState(pos).isAir()) {
+                        ice.fake.add(pos);
+                        TRAPPED_BLOCKS.put(pos, e.getUuid());
+                    }
                 }
             }
         }
@@ -198,15 +182,36 @@ public class GlacialPower {
         }
     }
 
-    /** Desfaz o gelo: devolve os blocos reais, solta o alvo e quebra com som e partículas. */
+    public static void breakIceAndFree(ServerWorld world, BlockPos pos, ServerPlayerEntity attacker) {
+        UUID trappedUuid = TRAPPED_BLOCKS.remove(pos);
+        if (trappedUuid != null) {
+            Entity target = world.getEntity(trappedUuid);
+            if (target instanceof LivingEntity livingTarget) {
+                livingTarget.damage(world.getDamageSources().playerAttack(attacker), 4.0f);
+                livingTarget.removeStatusEffect(ModEffects.FROZEN);
+                livingTarget.setFrozenTicks(0);
+                world.spawnParticles(ParticleTypes.EXPLOSION, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, 15, 0.3, 0.3, 0.3, 0.1);
+                world.playSound(null, pos, SoundEvents.BLOCK_GLASS_BREAK, SoundCategory.PLAYERS, 1.0f, 0.8f);
+                thawNow(target);
+            }
+        }
+        world.breakBlock(pos, true, attacker);
+    }
+
+    public static boolean isGlacialIce(ServerWorld world, BlockPos pos) {
+        return TRAPPED_BLOCKS.containsKey(pos);
+    }
+
     private static void thaw(Entity e, Ice ice) {
         sendBlocks(ice.world, ice.fake, false);
+        for (BlockPos pos : ice.fake) {
+            TRAPPED_BLOCKS.remove(pos);
+        }
         if (e != null) {
             ShadowStun.release(e);
             ice.world.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, Blocks.ICE.getDefaultState()),
                     e.getX(), e.getY() + e.getHeight() / 2, e.getZ(), 40, 0.4, 0.6, 0.4, 0.1);
-            ice.world.playSound(null, e.getX(), e.getY(), e.getZ(), SoundEvents.BLOCK_GLASS_BREAK,
-                    SoundCategory.PLAYERS, 1.0f, 1.0f);
+            ice.world.playSound(null, e.getX(), e.getY(), e.getZ(), SoundEvents.BLOCK_GLASS_BREAK, SoundCategory.PLAYERS, 1.0f, 1.0f);
         }
     }
 
@@ -215,7 +220,6 @@ public class GlacialPower {
         if (ice != null) thaw(e, ice);
     }
 
-    /** Dano de um jogador quebra o gelo (o dano da própria Glacial não conta). */
     public static void onDamaged(LivingEntity entity, DamageSource source) {
         if (ICE.isEmpty() || !ICE.containsKey(entity.getUuid())) return;
         if (source.isOf(ModDamage.FROST)) return;
@@ -223,16 +227,13 @@ public class GlacialPower {
         thawNow(entity);
     }
 
-    // ------------------------------------------------------------------ ULTIMATE
-
     public static boolean blizzard(ServerPlayerEntity p, ServerWorld w) {
         if (BLIZZARDS.containsKey(p.getUuid())) {
             p.sendMessage(Text.literal("Sua nevasca já está ativa."), true);
             return false;
         }
         BLIZZARDS.put(p.getUuid(), new Blizzard());
-        w.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.BLOCK_SNOW_BREAK, SoundCategory.PLAYERS, 2.0f, 0.5f);
-        w.spawnParticles(ParticleTypes.SNOWFLAKE, p.getX(), p.getY() + 1, p.getZ(), 150, 4, 1.5, 4, 0.1);
+        VFX.spawnBlizzardUltimate(w, p.getBlockPos(), (int) BLIZZARD_RADIUS);
         p.sendMessage(Text.literal("Nevasca ativada: 15 segundos."), true);
         return true;
     }
@@ -254,12 +255,9 @@ public class GlacialPower {
         return false;
     }
 
-    // ------------------------------------------------------------------ tempo
-
     public static void tick(MinecraftServer server) {
         int now = server.getTicks();
 
-        // ---- Congelamento: decaimento, dano por segundo e visual
         if (!FROST.isEmpty()) {
             Iterator<Map.Entry<UUID, Frost>> it = FROST.entrySet().iterator();
             while (it.hasNext()) {
@@ -282,18 +280,15 @@ public class GlacialPower {
                     }
                 }
                 if (f.level > 0) {
-                    le.setFrozenTicks(Math.min(139, 35 * f.level)); // tremor/azul sem causar dano de congelamento
+                    le.setFrozenTicks(Math.min(139, 35 * f.level));
                     if (now % 20 == 0 && le.getEntityWorld() instanceof ServerWorld lw) {
-                        lw.spawnParticles(ParticleTypes.SNOWFLAKE, le.getX(), le.getY() + le.getHeight() / 2, le.getZ(),
-                                3 * f.level, 0.3, 0.5, 0.3, 0.02);
-                        // 0,5 coração x nível por segundo (= nível em pontos de vida)
+                        lw.spawnParticles(ParticleTypes.SNOWFLAKE, le.getX(), le.getY() + le.getHeight() / 2, le.getZ(), 3 * f.level, 0.3, 0.5, 0.3, 0.02);
                         ModDamage.hit(lw, le, ModDamage.FROST, player(server, f.attacker), (float) f.level);
                     }
                 }
             }
         }
 
-        // ---- Gelo: acaba em 2 s
         if (!ICE.isEmpty()) {
             Iterator<Map.Entry<UUID, Ice>> it = ICE.entrySet().iterator();
             while (it.hasNext()) {
@@ -308,7 +303,6 @@ public class GlacialPower {
             }
         }
 
-        // ---- Nevasca
         if (!BLIZZARDS.isEmpty()) {
             Iterator<Map.Entry<UUID, Blizzard>> it = BLIZZARDS.entrySet().iterator();
             while (it.hasNext()) {
@@ -325,20 +319,15 @@ public class GlacialPower {
                 }
                 ServerWorld w = owner.getEntityWorld();
                 if (bz.ticksLeft % 2 == 0) {
-                    w.spawnParticles(ParticleTypes.SNOWFLAKE, owner.getX(), owner.getY() + 3, owner.getZ(),
-                            40, BLIZZARD_RADIUS * 0.7, 2.5, BLIZZARD_RADIUS * 0.7, 0.05);
+                    w.spawnParticles(ParticleTypes.SNOWFLAKE, owner.getX(), owner.getY() + 3, owner.getZ(), 40, BLIZZARD_RADIUS * 0.7, 2.5, BLIZZARD_RADIUS * 0.7, 0.05);
                 }
                 if (bz.ticksLeft % 20 == 0) {
                     Box box = new Box(owner.getX() - BLIZZARD_RADIUS, owner.getY() - BLIZZARD_HALF_HEIGHT, owner.getZ() - BLIZZARD_RADIUS,
                             owner.getX() + BLIZZARD_RADIUS, owner.getY() + BLIZZARD_HALF_HEIGHT, owner.getZ() + BLIZZARD_RADIUS);
-                    for (LivingEntity e : w.getEntitiesByClass(LivingEntity.class, box,
-                            e -> e != owner && e.isAlive() && !e.isSpectator())) {
+                    for (LivingEntity e : w.getEntitiesByClass(LivingEntity.class, box, e -> e != owner && e.isAlive() && !e.isSpectator())) {
                         if (!inside(owner, e)) continue;
                         Frost f = FROST.get(e.getUuid());
-                        if (f == null) {
-                            f = new Frost();
-                            FROST.put(e.getUuid(), f);
-                        }
+                        if (f == null) { f = new Frost(); FROST.put(e.getUuid(), f); }
                         f.attacker = owner.getUuid();
                         applyLevel(e, f, Math.min(MAX_LEVEL, f.level + 1));
                         if (e instanceof MobEntity) {
@@ -349,7 +338,6 @@ public class GlacialPower {
             }
         }
 
-        // ---- Ícone de gelo e névoa no cliente (a cada 5 ticks, só quando muda)
         if (now % 5 == 0) {
             for (ServerPlayerEntity pl : server.getPlayerManager().getPlayerList()) {
                 boolean can = false;
@@ -369,26 +357,22 @@ public class GlacialPower {
         }
     }
 
-    // ------------------------------------------------------------------ limpeza
-
-    /** Jogador saiu: encerra a nevasca dele. */
     public static void forget(ServerPlayerEntity p) {
         BLIZZARDS.remove(p.getUuid());
         HUD_STATE.remove(p.getUuid());
     }
 
-    /** Entidade descarregada ou morta: descongela e esquece o Congelamento. */
     public static void release(Entity e) {
         thawNow(e);
         FROST.remove(e.getUuid());
     }
 
-    /** Servidor fechando (os blocos de gelo são só visuais, nada fica salvo no mundo). */
     public static void releaseAll(MinecraftServer server) {
         FROST.clear();
         ICE.clear();
         BLIZZARDS.clear();
         HUD_STATE.clear();
+        TRAPPED_BLOCKS.clear();
     }
 
     private static ServerPlayerEntity player(MinecraftServer server, UUID id) {
