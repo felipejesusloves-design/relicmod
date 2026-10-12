@@ -1,5 +1,6 @@
 ﻿package com.example.relicmod;
 
+import net.minecraft.block.BlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LightningEntity;
@@ -17,10 +18,13 @@ import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
+import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.EntityHitResult;
+import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.RaycastContext;
 import net.minecraft.world.World;
 
 import java.util.HashMap;
@@ -33,7 +37,7 @@ import java.util.UUID;
  *  Passiva: 2 golpes criticos seguidos (golpes com a barra cheia, sem levar dano) liberam raios em cada golpe.
  *  Padrao: raio onde voce mira (dano + paralisia, ou buffs se cair em voce).
  *  Ultimate: canaliza 2 s e solta um feixe horizontal (estrondo do Warden + raio de tempestade).
- * Todos os raios sao so visuais (nao geram fogo); o dano e aplicado pelo mod.
+ * Todos os raios sao puramente visuais/sonoros sem gerar fogo no chao.
  */
 public class StormPower {
     public static final int COMBO_TIMEOUT = 20 * 6;     // sem acertar ninguem por 6 s: o estado acaba
@@ -116,7 +120,7 @@ public class StormPower {
 
         int amp = energy >= 4 ? 1 : 0;
         Box area = new Box(pos.x - 3, pos.y - 3, pos.z - 3, pos.x + 3, pos.y + 3, pos.z + 3);
-        for (LivingEntity e : w.getEntitiesByClass(LivingEntity.class, area, e -> e.isAlive() && !e.isSpectator())) {
+        for (LivingEntity e : w.getEntitiesByClass(LivingEntity.class, area, ent -> ent.isAlive() && !ent.isSpectator())) {
             if (!e.getBoundingBox().expand(2.0, 1.0, 2.0).contains(pos)) continue;
             if (e == p) {
                 p.addStatusEffect(new StatusEffectInstance(StatusEffects.STRENGTH, 200, amp, false, true));
@@ -137,14 +141,19 @@ public class StormPower {
         LivingEntity best = null;
         double bestDot = 0.985;
         for (LivingEntity e : w.getEntitiesByClass(LivingEntity.class, p.getBoundingBox().expand(range),
-                e -> e != p && e.isAlive() && !e.isSpectator())) {
+                ent -> ent != p && ent.isAlive() && !ent.isSpectator())) {
             Vec3d to = new Vec3d(e.getX(), e.getEyeY(), e.getZ()).subtract(eye);
             double dist = to.length();
             if (dist > range || dist < 0.5) continue;
             double dot = to.normalize().dotProduct(look);
-            if (dot > bestDot && p.canSee(e)) {
-                best = e;
-                bestDot = dot;
+            if (dot > bestDot) {
+                // Checa se ha bloco bloqueando a visao
+                BlockHitResult bHit = w.raycast(new RaycastContext(eye, e.getEyePos(),
+                        RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, p));
+                if (bHit.getType() == HitResult.Type.MISS) {
+                    best = e;
+                    bestDot = dot;
+                }
             }
         }
         if (best != null) return new Vec3d(best.getX(), best.getY(), best.getZ());
@@ -247,7 +256,7 @@ public class StormPower {
         // dano: 10 coracoes, ignora so o efeito dos encantamentos de protecao
         Box sweep = new Box(start, end).expand(3.0);
         for (LivingEntity e : w.getEntitiesByClass(LivingEntity.class, sweep,
-                e -> e != p && e.isAlive() && !e.isSpectator())) {
+                ent -> ent != p && ent.isAlive() && !ent.isSpectator())) {
             Box bb = e.getBoundingBox().expand(1.0);
             if (bb.contains(start) || bb.raycast(start, end).isPresent()) {
                 ModDamage.hit(w, e, ModDamage.STORM_BEAM, p, BEAM_DAMAGE);
@@ -257,12 +266,14 @@ public class StormPower {
 
     // ------------------------------------------------------------------ utilidades
 
-    /** Raio so visual: nao causa dano nem fogo, nao transforma aldees nem carrega creepers. */
+    /** Raio que nao gera fogo: feito via particulas de flash/eletricidade e sons estrondosos de raio. */
     private static void bolt(ServerWorld w, double x, double y, double z) {
-        LightningEntity bolt = EntityType.LIGHTNING_BOLT.create(w, SpawnReason.TRIGGERED);
-        if (bolt == null) return;
-        bolt.setPosition(x, y, z);
-        bolt.setCosmetic(true);
-        w.spawnEntity(bolt);
+        // Particulas volumosas de raio vertical
+        for (double dy = 0; dy <= 20; dy += 1.0) {
+            w.spawnParticles(ParticleTypes.ELECTRIC_SPARK, x, y + dy, z, 5, 0.3, 0.5, 0.3, 0.15);
+        }
+        w.spawnParticles(ParticleTypes.FLASH, x, y + 1.0, z, 2, 0.5, 0.5, 0.5, 0.0);
+        w.playSound(null, x, y, z, SoundEvents.ENTITY_LIGHTNING_BOLT_THUNDER, SoundCategory.PLAYERS, 2.0f, 1.0f);
+        w.playSound(null, x, y, z, SoundEvents.ENTITY_LIGHTNING_BOLT_IMPACT, SoundCategory.PLAYERS, 1.5f, 1.2f);
     }
 }
