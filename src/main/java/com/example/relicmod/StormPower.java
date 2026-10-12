@@ -272,7 +272,7 @@ public class StormPower {
         for (double dy = 0; dy <= 20; dy += 1.0) {
             w.spawnParticles(ParticleTypes.ELECTRIC_SPARK, x, y + dy, z, 5, 0.3, 0.5, 0.3, 0.15);
         }
-        w.spawnParticles(ParticleTypes.FLASH, x, y + 1.0, z, 2, 0.5, 0.5, 0.5, 0.0);
+        w.spawnParticles(ParticleTypes.FIREWORK, x, y + 1.0, z, 10, 0.5, 0.5, 0.5, 0.1);
         w.playSound(null, x, y, z, SoundEvents.ENTITY_LIGHTNING_BOLT_THUNDER, SoundCategory.PLAYERS, 2.0f, 1.0f);
         w.playSound(null, x, y, z, SoundEvents.ENTITY_LIGHTNING_BOLT_IMPACT, SoundCategory.PLAYERS, 1.5f, 1.2f);
     }
