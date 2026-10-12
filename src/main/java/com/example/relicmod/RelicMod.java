@@ -58,7 +58,11 @@ public class RelicMod implements ModInitializer {
 
         // Ultimate da Sombra: o primeiro golpe depois de ativar paralisa e amaldiçoa
         AttackEntityCallback.EVENT.register(ShadowStun::onAttack);
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> ShadowStun.forget(handler.player));
+        AttackEntityCallback.EVENT.register(StormPower::onAttack);
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+            ShadowStun.forget(handler.player);
+            StormPower.forget(handler.player);
+        });
         ServerEntityEvents.ENTITY_UNLOAD.register((entity, world) -> ShadowStun.release(entity));
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             ShadowStun.releaseAll(server);
@@ -80,7 +84,9 @@ public class RelicMod implements ModInitializer {
         // Vulcão: o usuário causa +50% de dano de todas as fontes
         ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, baseDamageTaken, damageTaken, blocked) -> {
             if (blocked || damageTaken <= 0) return;
-            if (source.isOf(ModDamage.FIREBALL) || source.isOf(ModDamage.VOLCANO)) return;
+            if (entity instanceof ServerPlayerEntity hurt) StormPower.onDamaged(hurt);
+            if (source.isOf(ModDamage.FIREBALL) || source.isOf(ModDamage.VOLCANO)
+                    || source.isOf(ModDamage.STORM) || source.isOf(ModDamage.STORM_BEAM)) return;
             if (source.getAttacker() instanceof ServerPlayerEntity attacker && attacker != entity
                     && Volcano.isBuffed(attacker) && entity.getEntityWorld() instanceof ServerWorld w) {
                 ModDamage.hit(w, entity, ModDamage.VOLCANO, attacker, damageTaken * 0.5f);
@@ -117,6 +123,7 @@ public class RelicMod implements ModInitializer {
             ShadowStun.tick(server);
             Fireballs.tick(server);
             Volcano.tick(server);
+            StormPower.tick(server);
             int tick = server.getTicks();
 
             // nado na lava (Ígnea)

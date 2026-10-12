@@ -151,23 +151,21 @@ public class Relics {
         }
     }
 
-    // ---------- TEMPESTADE (habilidades antigas, ainda sem ultimate) ----------
+    // ---------- TEMPESTADE ----------
     public static class Storm extends RelicItem {
-        public Storm(Settings s) { super(s, 20 * 12, 0); }
+        public Storm(Settings s) { super(s, 20 * 10, 20 * 120); }
 
-        @Override public void applyPassive(ServerPlayerEntity p, int energy) {
-            if (p.getEntityWorld().isRaining()) effect(p, StatusEffects.SPEED, 60, 1);
-        }
+        @Override public boolean hasUltimate() { return true; }
+
+        /** A passiva da Tempestade acontece nos golpes (veja StormPower). */
+        @Override public void applyPassive(ServerPlayerEntity p, int energy) {}
 
         @Override protected boolean useStandard(ServerPlayerEntity p, ServerWorld w, int energy) {
-            HitResult hit = p.raycast(30, 1.0f, false);
-            Vec3d pos = hit.getPos();
-            LightningEntity bolt = EntityType.LIGHTNING_BOLT.create(w, SpawnReason.TRIGGERED);
-            if (bolt == null) return false;
-            bolt.setPosition(pos);
-            bolt.setChanneler(p);
-            w.spawnEntity(bolt);
-            return true;
+            return StormPower.standard(p, w, energy);
+        }
+
+        @Override protected boolean useUltimate(ServerPlayerEntity p, ServerWorld w, int energy) {
+            return StormPower.channel(p, w);
         }
     }
 }

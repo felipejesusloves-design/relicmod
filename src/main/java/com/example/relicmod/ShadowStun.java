@@ -76,20 +76,25 @@ public class ShadowStun {
         return ActionResult.PASS;
     }
 
-    private static void stun(ServerPlayerEntity attacker, LivingEntity target) {
+    /** Paraliza: não anda e não pula (mobs ficam sem IA). Opcionalmente cega. Usado também pela Tempestade. */
+    public static void paralyze(LivingEntity target, int ticks, boolean blind) {
         Stun existing = STUNNED.get(target.getUuid());
         if (existing != null) {
-            existing.ticksLeft = STUN_TICKS;
+            existing.ticksLeft = Math.max(existing.ticksLeft, ticks);
         } else {
             boolean noAi = target instanceof MobEntity m && m.isAiDisabled();
-            STUNNED.put(target.getUuid(), new Stun(STUN_TICKS, noAi));
+            STUNNED.put(target.getUuid(), new Stun(ticks, noAi));
             if (target instanceof MobEntity m) m.setAiDisabled(true);
             addMod(target, EntityAttributes.MOVEMENT_SPEED);
             addMod(target, EntityAttributes.JUMP_STRENGTH);
         }
+        if (blind) {
+            target.addStatusEffect(new StatusEffectInstance(StatusEffects.BLINDNESS, ticks, 0, false, false));
+        }
+    }
 
-        // visão: cegueira durante a paralisia
-        target.addStatusEffect(new StatusEffectInstance(StatusEffects.BLINDNESS, STUN_TICKS, 0, false, false));
+    private static void stun(ServerPlayerEntity attacker, LivingEntity target) {
+        paralyze(target, STUN_TICKS, true);
         // maldição: -3 corações de vida máxima por 20 s
         target.addStatusEffect(new StatusEffectInstance(ModEffects.CURSED, CURSE_TICKS, 0, false, true));
         if (target.getHealth() > target.getMaxHealth()) target.setHealth(target.getMaxHealth());
