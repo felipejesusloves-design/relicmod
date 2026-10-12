@@ -16,8 +16,8 @@ public class VFX {
     }
 
     public static void spawnLightningArc(ServerWorld world, Entity source, Entity target) {
-        Vec3d start = source.getPos();
-        Vec3d end = target.getPos();
+        Vec3d start = new Vec3d(source.getX(), source.getY(), source.getZ());
+        Vec3d end = new Vec3d(target.getX(), target.getY(), target.getZ());
         int steps = 20;
         for (int i = 0; i <= steps; i++) {
             double ratio = (double) i / steps;
@@ -48,7 +48,7 @@ public class VFX {
             double y = center.getY() + world.random.nextDouble() * 4;
             world.spawnParticles(ParticleTypes.SNOWFLAKE, x, y, z, 1, 0.0, -0.1, 0.0, 0.05);
         }
-        world.playSound(null, center, SoundEvents.WEATHER_AMBIENT, SoundCategory.PLAYERS, 1.0f, 0.5f);
+        world.playSound(null, center, SoundEvents.BLOCK_SNOW_BREAK, SoundCategory.PLAYERS, 1.0f, 0.5f);
     }
 
     public static void spawnShadowCurse(ServerWorld world, Entity target) {
